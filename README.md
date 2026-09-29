@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/OWNER/acentorust/releases/latest"><img src="https://img.shields.io/github/v/release/OWNER/acentorust?style=flat-square&color=2F6FDB&label=vers%C3%A3o" alt="Versão"></a>
+  <a href="https://github.com/armitagethird/acentorust/releases/latest"><img src="https://img.shields.io/github/v/release/armitagethird/acentorust?style=flat-square&color=2F6FDB&label=vers%C3%A3o" alt="Versão"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-2F6FDB?style=flat-square" alt="Windows 10 e 11">
   <img src="https://img.shields.io/badge/Rust-edi%C3%A7%C3%A3o%202024-18181B?style=flat-square&logo=rust" alt="Rust 2024">
   <img src="https://img.shields.io/badge/exe-154%20KB-3F3F46?style=flat-square" alt="Executável de 154 KB">
@@ -18,9 +18,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/OWNER/acentorust/releases/latest/download/acentorust.exe"><b>Baixar acentorust.exe</b></a>
+  <a href="https://github.com/armitagethird/acentorust/releases/latest/download/acentorust.exe"><b>Baixar acentorust.exe</b></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/OWNER/acentorust/releases">Todas as versões</a>
+  <a href="https://github.com/armitagethird/acentorust/releases">Todas as versões</a>
 </p>
 
 <p align="center">
@@ -68,7 +68,7 @@ Ordenados pela frequência em português, para que os mais usados precisem de me
 
 ## Instalação
 
-1. [Baixe o `acentorust.exe`](https://github.com/OWNER/acentorust/releases/latest/download/acentorust.exe).
+1. [Baixe o `acentorust.exe`](https://github.com/armitagethird/acentorust/releases/latest/download/acentorust.exe).
 2. Guarde-o numa pasta fixa, por exemplo `%LOCALAPPDATA%\Programs\AcentoRust\`.
 3. Execute. O ícone **á** aparece na bandeja, perto do relógio.
 4. Clique no ícone e marque **Iniciar com o Windows**.
@@ -109,7 +109,7 @@ Um programa que intercepta o teclado não pode errar. As proteções:
 Requer [Rust](https://rustup.rs) estável com o toolchain MSVC.
 
 ```powershell
-git clone https://github.com/OWNER/acentorust
+git clone https://github.com/armitagethird/acentorust
 cd acentorust
 cargo build --release
 # resultado: target\release\acentorust.exe
