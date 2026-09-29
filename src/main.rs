@@ -167,7 +167,7 @@ fn flush() {
 fn execute(ui: &Ui, action: Action) {
     match action {
         Action::Arm => {
-            // SAFETY: timer on our own window; re-arming replaces a pending one.
+            // SAFETY: periodic timer on our own window; re-arming replaces a pending one.
             let armed =
                 unsafe { SetTimer(MAIN_WINDOW.get(), CONFIRM_TIMER, CONFIRM_DELAY_MS, None) };
             if armed == 0 {
@@ -193,9 +193,9 @@ fn end_session(ui: &Ui) {
     ui.popup.hide();
 }
 
+/// Not killed here: the periodic timer keeps ticking as a watchdog for a lost letter key-up.
+/// `end_session` kills it, and every session end goes through there.
 fn on_timer() {
-    // SAFETY: our own window and timer id.
-    unsafe { KillTimer(MAIN_WINDOW.get(), CONFIRM_TIMER) };
     let action = ENGINE.with(|engine| {
         engine
             .try_borrow_mut()

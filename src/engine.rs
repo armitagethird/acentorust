@@ -19,7 +19,8 @@ pub struct RawKey {
 pub enum Event {
     KeyDown(RawKey),
     KeyUp(RawKey),
-    /// The confirmation timer started by [`Action::Arm`] fired.
+    /// A tick of the timer started by [`Action::Arm`]. The first confirms the session; later ticks
+    /// are a watchdog for a lost letter key-up.
     Timer,
 }
 
@@ -34,7 +35,7 @@ pub trait Env {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
-    /// Start the confirmation timer (`CONFIRM_DELAY_MS`).
+    /// Start the periodic timer (`CONFIRM_DELAY_MS`); it runs until the session ends.
     Arm,
     /// Show or refresh the popup with `variants`, highlighting `index`.
     Show {
@@ -138,7 +139,7 @@ impl Engine {
                 upper,
                 index,
                 confirmed,
-            } => self.active(letter, upper, index, confirmed, event),
+            } => self.active(letter, upper, index, confirmed, event, env),
         }
     }
 
@@ -185,7 +186,22 @@ impl Engine {
         index: usize,
         confirmed: bool,
         event: Event,
+        env: &impl Env,
     ) -> Outcome {
+        // A lost letter key-up (elevated window, secure desktop, hook timeout) would otherwise
+        // leave the session open forever. Key-ups are exempt: they end the session themselves.
+        if matches!(event, Event::KeyDown(_) | Event::Timer) && !env.is_down(letter.vk()) {
+            self.state = State::Idle;
+            return match (event, confirmed) {
+                (Event::KeyDown(_), true) => {
+                    self.idle(event, env);
+                    pass(Action::Hide)
+                }
+                (Event::KeyDown(key), false) => block(Action::Replay(Some(key))),
+                (_, true) => pass(Action::Hide),
+                (_, false) => pass(Action::Replay(None)),
+            };
+        }
         let variants = letter.variants(upper);
         let count = variants.len();
         match event {
@@ -591,5 +607,49 @@ mod tests {
         assert_eq!(h.timer(), passed());
         h.down(A);
         assert_eq!(h.timer(), passed());
+    }
+
+    #[test]
+    fn lost_letter_key_up_hides_confirmed_session_on_next_key() {
+        let mut h = Harness::default();
+        h.open(A);
+        h.env.down.clear(); // key-up never reached the hook
+        assert_eq!(h.down(VK_SPACE), passed_with(Action::Hide));
+        assert_eq!(h.down(A), passed()); // typing works again: a fresh hold
+    }
+
+    #[test]
+    fn watchdog_tick_hides_confirmed_session_after_lost_key_up() {
+        let mut h = Harness::default();
+        h.open(A);
+        h.env.down.clear();
+        assert_eq!(h.timer(), passed_with(Action::Hide));
+        assert_eq!(h.timer(), passed()); // session over
+    }
+
+    #[test]
+    fn lost_letter_key_up_before_confirmation_replays_space_on_tick() {
+        let mut h = Harness::default();
+        h.down(A);
+        h.down(VK_SPACE);
+        h.env.down.clear();
+        assert_eq!(h.timer(), passed_with(Action::Replay(None)));
+    }
+
+    #[test]
+    fn lost_letter_key_up_before_confirmation_replays_space_then_key() {
+        let mut h = Harness::default();
+        h.down(A);
+        h.down(VK_SPACE);
+        h.env.down.clear();
+        assert_eq!(h.down(D), blocked_with(Action::Replay(Some(key(D)))));
+    }
+
+    #[test]
+    fn watchdog_tick_keeps_session_while_letter_is_held() {
+        let mut h = Harness::default();
+        h.open(A);
+        assert_eq!(h.timer(), passed());
+        assert_eq!(h.up(A), passed_with(Action::Commit('á')));
     }
 }

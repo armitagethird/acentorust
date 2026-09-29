@@ -53,6 +53,7 @@ Fluxo:
   - outra tecla é pressionada → essa tecla é bloqueada e reenviamos Espaço + essa tecla, na ordem (`Replay(Some(key))`).
 - **Tela cheia**: se a janela em primeiro plano cobre o monitor inteiro, não está maximizada e não é a área de trabalho (classes `Progman`/`WorkerW`), Espaço não ativa (jogos: segurar A + Espaço para pular continua funcionando).
 - **Letra fantasma**: na ativação, confere se a letra está fisicamente pressionada (`GetAsyncKeyState`); se não (key-up perdido, ex.: troca para a área de trabalho segura), não ativa.
+- **Sessão órfã** (key-up da letra perdido: janela elevada, troca de desktop, timeout do hook): a sessão também é validada a cada tecla e a cada tick de 200 ms, e fecha se a letra não estiver mais fisicamente pressionada.
 - **Eventos injetados** (`LLKHF_INJECTED`, inclusive os nossos) passam direto, sem tocar no estado → sem loop.
 - **Hook mínimo**: o callback só decide bloquear/passar e enfileira no máximo 1 ação; desenhar, timers e `SendInput` rodam no loop de mensagens (o Windows remove hooks lentos silenciosamente).
 - **Sem reentrância**: nenhum `borrow` de estado atravessa chamada Win32. Se o estado estiver ocupado (`try_borrow_mut` falha), a tecla passa.
