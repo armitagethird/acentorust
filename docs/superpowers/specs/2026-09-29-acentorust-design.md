@@ -59,7 +59,9 @@ Fluxo:
 - **Sem reentrância**: nenhum `borrow` de estado atravessa chamada Win32. Se o estado estiver ocupado (`try_borrow_mut` falha), a tecla passa.
 - **Fail-safe**: `panic = "abort"` → processo morre → Windows remove o hook → teclado normal.
 - **Instância única** via mutex nomeado; segunda instância sai em silêncio.
-- **Bandeja resiliente**: reinsere o ícone ao receber `TaskbarCreated` (Explorer reiniciou).
+- **Bandeja resiliente**: reinsere o ícone ao receber `TaskbarCreated` (Explorer reiniciou). Se a bandeja não estiver disponível na inicialização (autostart antes do Explorer), o app segue rodando e tenta de novo a cada 2 s.
+- **Hook após suspensão**: ao voltar da suspensão (`PBT_APMRESUMEAUTOMATIC`) o hook é reinstalado e a sessão/estado são zerados — o Windows pode ter removido o hook por timeout.
+- **Encerramento limpo**: `WM_CLOSE` na janela principal encerra o app (remove hook e ícone); na barra, é ignorado.
 - **Privacidade**: nenhuma tecla é logada ou gravada; zero rede. Logs de diagnóstico (`OutputDebugStringW`) nunca contêm teclas/caracteres.
 - **Limitação conhecida** (igual PowerToys): não atua em janelas elevadas (admin), tela de bloqueio ou UAC — lá o teclado funciona normal.
 
@@ -96,7 +98,7 @@ A tabela de transições completa está no plano (Task 2).
 teclado → hook LL (thread principal) → engine.handle() → block/pass
                                           └─ ação → fila (VecDeque) → PostMessage(WM_APP_FLUSH)
 loop de mensagens → WM_APP_FLUSH → executa ações uma a uma (popup / SetTimer / SendInput)
-                  → WM_TIMER     → engine.handle(Timer) → fila → flush
+                  → WM_TIMER     → engine.handle(Timer) → fila → flush   (periódico enquanto a sessão está aberta: confirma e vigia)
                   → bandeja      → menu → autostart / sair
 ```
 
@@ -123,7 +125,7 @@ Valor `AcentoRust` em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` = `"<
 
 ## Erros
 
-- Inicialização (hook, janelas, bandeja): `MessageBoxW` "AcentoRust: <erro com contexto>" e sai com código 1.
+- Inicialização (hook, janelas, desenho do ícone): `MessageBoxW` "AcentoRust: <erro com contexto>" e sai com código 1. Falha ao registrar o ícone na bandeja não é fatal (retry a cada 2 s).
 - Execução (SendInput parcial, registro): `OutputDebugStringW("AcentoRust: ...")` (visível no DebugView), sem dados de tecla; menu de autostart com falha mostra `MessageBoxW`.
 
 ## Testes
