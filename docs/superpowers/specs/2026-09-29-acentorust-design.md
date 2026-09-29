@@ -8,7 +8,7 @@ Clone mínimo do **Acento Rápido (Quick Accent)** do PowerToys, em Rust, só Wi
 Motivo: ter o recurso sem manter o PowerToys inteiro rodando.
 
 Critérios de sucesso:
-- `.exe` release < 400 KB; RAM (working set) < 3 MB; 0% CPU ocioso.
+- `.exe` release < 400 KB; RAM privada (coluna "Memória" do Gerenciador de Tarefas) < 3 MB; 0% CPU ocioso.
 - Nunca trava o teclado nem engole teclas indevidamente. Se o processo morrer, o Windows remove o hook e o teclado segue normal (fail-safe).
 - Digitação rápida normal (rollover) nunca dispara o recurso por engano.
 
