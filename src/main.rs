@@ -30,7 +30,7 @@ use windows_sys::{
             WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, KillTimer,
                 MB_ICONERROR, MB_OK, MSG, MessageBoxW, PostMessageW, PostQuitMessage,
-                RegisterClassW, SetTimer, WM_APP, WM_TIMER, WNDCLASSW, WS_EX_TOOLWINDOW,
+                RegisterClassW, SetTimer, WM_APP, WM_CLOSE, WM_TIMER, WNDCLASSW, WS_EX_TOOLWINDOW,
                 WS_OVERLAPPED,
             },
         },
@@ -236,6 +236,12 @@ fn on_taskbar_created() {
 
 extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
+        // DefWindowProcW would destroy the window without WM_QUIT, leaving the hook installed
+        // and every PostMessageW failing.
+        WM_CLOSE => {
+            // SAFETY: plain call; ends the message loop.
+            unsafe { PostQuitMessage(0) }
+        }
         WM_APP_FLUSH => flush(),
         WM_TIMER if wparam == CONFIRM_TIMER => on_timer(),
         WM_TRAY if tray::is_menu_request(lparam) => on_tray_menu(),

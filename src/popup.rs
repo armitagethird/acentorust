@@ -27,7 +27,7 @@ use windows_sys::{
             WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DestroyWindow, GetForegroundWindow, HWND_TOPMOST,
                 IDC_ARROW, LoadCursorW, MA_NOACTIVATE, RegisterClassW, SW_HIDE, SWP_NOACTIVATE,
-                SWP_SHOWWINDOW, SetWindowPos, ShowWindow, WM_DPICHANGED, WM_ERASEBKGND,
+                SWP_SHOWWINDOW, SetWindowPos, ShowWindow, WM_CLOSE, WM_DPICHANGED, WM_ERASEBKGND,
                 WM_MOUSEACTIVATE, WM_PAINT, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
                 WS_EX_TOPMOST, WS_POPUP,
             },
@@ -353,6 +353,8 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
         WM_ERASEBKGND => 1,
         // Clicking the bar must not steal focus from the app being typed in.
         WM_MOUSEACTIVATE => MA_NOACTIVATE as LRESULT,
+        // The bar belongs to `Popup`; closing it from outside would leave a dangling handle.
+        WM_CLOSE => 0,
         // show() recomputes size and position for the target monitor's DPI every time.
         WM_DPICHANGED => 0,
         // SAFETY: forwarding the unmodified arguments to the default window procedure.
