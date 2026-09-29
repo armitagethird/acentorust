@@ -3,6 +3,7 @@ name = "acentorust"
 version = "0.1.0"
 edition = "2024"
 description = "Acento rápido (clone do Quick Accent do PowerToys) em Rust + Win32 puro"
+license = "MIT"
 publish = false
 
 [dependencies]

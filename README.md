@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/Rust-edi%C3%A7%C3%A3o%202024-18181B?style=flat-square&logo=rust" alt="Rust 2024">
   <img src="https://img.shields.io/badge/exe-154%20KB-3F3F46?style=flat-square" alt="Executável de 154 KB">
   <img src="https://img.shields.io/badge/RAM-2%2C6%20MB-3F3F46?style=flat-square" alt="2,6 MB de RAM">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licen%C3%A7a-MIT-3F3F46?style=flat-square" alt="Licença MIT"></a>
 </p>
 
 <p align="center">
@@ -154,3 +155,7 @@ Dependências de compilação: [`windows-sys`](https://crates.io/crates/windows-
 ## Desinstalar
 
 Clique no ícone da bandeja, desmarque **Iniciar com o Windows**, clique em **Sair** e apague o `.exe`. Não sobra mais nada.
+
+## Licença
+
+[MIT](LICENSE) © 2026 Romero Saraiva
