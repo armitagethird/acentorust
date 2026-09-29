@@ -58,14 +58,13 @@ pub struct Tray {
 }
 
 impl Tray {
-    /// Draws the icon and adds it to the tray. Callbacks arrive at `hwnd` as [`WM_TRAY`].
-    pub fn add(hwnd: HWND) -> Result<Self> {
-        let tray = Self {
+    /// Draws the icon without adding it: call [`Tray::register`] next. Callbacks arrive at `hwnd`
+    /// as [`WM_TRAY`]. Registration is separate because Explorer may not be ready at logon.
+    pub fn new(hwnd: HWND) -> Result<Self> {
+        Ok(Self {
             hwnd,
             icon: draw_icon()?,
-        };
-        tray.register()?;
-        Ok(tray)
+        })
     }
 
     /// (Re)adds the icon. Idempotent, so it is safe on every `TaskbarCreated`: that message also

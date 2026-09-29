@@ -41,6 +41,8 @@ use windows_sys::{
 /// Posted by the hook: run queued actions outside the hook callback.
 const WM_APP_FLUSH: u32 = WM_APP + 2;
 const CONFIRM_TIMER: usize = 1;
+const TRAY_RETRY_TIMER: usize = 2;
+const TRAY_RETRY_MS: u32 = 2000;
 
 struct Ui {
     popup: Popup,
@@ -83,8 +85,13 @@ fn run() -> Result<()> {
     TASKBAR_CREATED.set(tray::taskbar_created_message());
     let ui = Ui {
         popup: Popup::create()?,
-        tray: Tray::add(hwnd)?,
+        tray: Tray::new(hwnd)?,
     };
+    // Explorer's notification area may not exist yet when started at logon: keep running and retry.
+    if let Err(error) = ui.tray.register() {
+        debug_log(&format!("bandeja: {error:#}"));
+        start_tray_retry();
+    }
     UI.set(Some(ui));
 
     // Keep the Run entry pointing at this exe in case it was moved.
@@ -224,14 +231,27 @@ fn on_tray_menu() {
     }
 }
 
-fn on_taskbar_created() {
-    UI.with_borrow(|ui| {
-        if let Some(ui) = ui
-            && let Err(error) = ui.tray.register()
-        {
-            debug_log(&format!("bandeja: {error:#}"));
-        }
+fn start_tray_retry() {
+    // SAFETY: periodic timer on our own window.
+    if unsafe { SetTimer(MAIN_WINDOW.get(), TRAY_RETRY_TIMER, TRAY_RETRY_MS, None) } == 0 {
+        debug_log(&format!("SetTimer: {}", io::Error::last_os_error()));
+    }
+}
+
+/// Registers the tray icon (on `TaskbarCreated` or a retry tick) and stops the retry timer once
+/// it succeeds.
+fn register_tray() {
+    let registered = UI.with_borrow(|ui| {
+        let Some(ui) = ui else { return false };
+        ui.tray
+            .register()
+            .inspect_err(|error| debug_log(&format!("bandeja: {error:#}")))
+            .is_ok()
     });
+    if registered {
+        // SAFETY: killing a timer that may not exist is harmless.
+        unsafe { KillTimer(MAIN_WINDOW.get(), TRAY_RETRY_TIMER) };
+    }
 }
 
 extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
@@ -244,8 +264,9 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
         }
         WM_APP_FLUSH => flush(),
         WM_TIMER if wparam == CONFIRM_TIMER => on_timer(),
+        WM_TIMER if wparam == TRAY_RETRY_TIMER => register_tray(),
         WM_TRAY if tray::is_menu_request(lparam) => on_tray_menu(),
-        _ if msg != 0 && msg == TASKBAR_CREATED.get() => on_taskbar_created(),
+        _ if msg != 0 && msg == TASKBAR_CREATED.get() => register_tray(),
         // SAFETY: forwarding the unmodified arguments to the default window procedure.
         _ => return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) },
     }
