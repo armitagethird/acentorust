@@ -29,9 +29,9 @@ use windows_sys::{
             HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext},
             WindowsAndMessaging::{
                 CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, KillTimer,
-                MB_ICONERROR, MB_OK, MSG, MessageBoxW, PostMessageW, PostQuitMessage,
-                RegisterClassW, SetTimer, WM_APP, WM_CLOSE, WM_TIMER, WNDCLASSW, WS_EX_TOOLWINDOW,
-                WS_OVERLAPPED,
+                MB_ICONERROR, MB_OK, MSG, MessageBoxW, PBT_APMRESUMEAUTOMATIC, PostMessageW,
+                PostQuitMessage, RegisterClassW, SetTimer, WM_APP, WM_CLOSE, WM_POWERBROADCAST,
+                WM_TIMER, WNDCLASSW, WS_EX_TOOLWINDOW, WS_OVERLAPPED,
             },
         },
     },
@@ -56,18 +56,22 @@ struct Ui {
 //   queries, so the hook never finds them borrowed. If it ever does, the key passes.
 // - UI is only shared-borrowed while running. It is taken once after the loop, so the tray
 //   icon is removed explicitly (main-thread TLS destructors may not run at exit).
+// - HOOK is mutably borrowed only by `take`/`set` in run() and reinstall_hook(), never while a
+//   message is pumped. Dropped before UI so no key event arrives after the UI is gone.
 thread_local! {
     static ENGINE: RefCell<Engine> = RefCell::new(Engine::new());
     static PENDING: RefCell<VecDeque<Action>> = RefCell::new(VecDeque::with_capacity(16));
     static MAIN_WINDOW: Cell<HWND> = const { Cell::new(ptr::null_mut()) };
     static TASKBAR_CREATED: Cell<u32> = const { Cell::new(0) };
     static UI: RefCell<Option<Ui>> = const { RefCell::new(None) };
+    static HOOK: RefCell<Option<hook::Hook>> = const { RefCell::new(None) };
 }
 
 fn main() {
     if let Err(error) = run() {
         show_error(&error);
-        // exit() skips thread-local destructors: remove the tray icon explicitly.
+        // exit() skips thread-local destructors: unhook and remove the tray icon explicitly.
+        drop(HOOK.take());
         drop(UI.take());
         std::process::exit(1);
     }
@@ -77,7 +81,8 @@ fn run() -> Result<()> {
     let Some(_instance) = SingleInstance::acquire()? else {
         return Ok(());
     };
-    // SAFETY: plain call. It fails only if awareness was already set, which is harmless.
+    // SAFETY: plain call. It fails if awareness was already set or on Windows 10 before 1703
+    // (no per-monitor v2); either way only the scaling degrades.
     unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
 
     let hwnd = create_main_window()?;
@@ -101,9 +106,9 @@ fn run() -> Result<()> {
         debug_log(&format!("autostart: {error:#}"));
     }
 
-    let hook = hook::install(on_key)?;
+    HOOK.set(Some(hook::install(on_key)?));
     message_loop();
-    drop(hook);
+    drop(HOOK.take());
     drop(UI.take());
     Ok(())
 }
@@ -231,6 +236,24 @@ fn on_tray_menu() {
     }
 }
 
+/// Windows silently removes a low-level hook whose callback times out, typically on resume from
+/// sleep when our pages are paged back in. Order matters: dropping the old `Hook` clears the
+/// handler that `install` sets again, and the engine must be reset outside the hook.
+fn reinstall_hook() {
+    drop(HOOK.take());
+    ENGINE.with_borrow_mut(|engine| *engine = Engine::new());
+    PENDING.with_borrow_mut(VecDeque::clear);
+    UI.with_borrow(|ui| {
+        if let Some(ui) = ui {
+            end_session(ui);
+        }
+    });
+    match hook::install(on_key) {
+        Ok(hook) => HOOK.set(Some(hook)),
+        Err(error) => debug_log(&format!("hook: {error:#}")),
+    }
+}
+
 fn start_tray_retry() {
     // SAFETY: periodic timer on our own window.
     if unsafe { SetTimer(MAIN_WINDOW.get(), TRAY_RETRY_TIMER, TRAY_RETRY_MS, None) } == 0 {
@@ -261,6 +284,11 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
         WM_CLOSE => {
             // SAFETY: plain call; ends the message loop.
             unsafe { PostQuitMessage(0) }
+        }
+        WM_POWERBROADCAST if wparam == PBT_APMRESUMEAUTOMATIC as usize => {
+            reinstall_hook();
+            // SAFETY: forwarding the unmodified arguments to the default window procedure.
+            return unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
         }
         WM_APP_FLUSH => flush(),
         WM_TIMER if wparam == CONFIRM_TIMER => on_timer(),
