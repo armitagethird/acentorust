@@ -65,6 +65,8 @@ thread_local! {
 fn main() {
     if let Err(error) = run() {
         show_error(&error);
+        // exit() skips thread-local destructors: remove the tray icon explicitly.
+        drop(UI.take());
         std::process::exit(1);
     }
 }
@@ -101,12 +103,19 @@ fn run() -> Result<()> {
 
 fn message_loop() {
     // SAFETY: all-zero is a valid MSG; standard loop. GetMessageW returns 0 on WM_QUIT and -1
-    // on error, and both end the loop.
-    unsafe {
+    // on error; both end the loop.
+    let failed = unsafe {
         let mut msg: MSG = std::mem::zeroed();
-        while GetMessageW(&mut msg, ptr::null_mut(), 0, 0) > 0 {
-            DispatchMessageW(&msg);
+        loop {
+            match GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                0 => break false,
+                -1 => break true,
+                _ => DispatchMessageW(&msg),
+            };
         }
+    };
+    if failed {
+        debug_log(&format!("GetMessageW: {}", io::Error::last_os_error()));
     }
 }
 
